@@ -613,10 +613,14 @@ Stated plainly, because performance tools that oversell are worse than useless:
   validates the mechanism; it does not tell you what thirty unattended
   experiments against a hundred-thousand-line codebase look like. If you run one,
   the results — good or bad — are worth an issue.
-- **Windows is untested.** Nothing in the harness is deliberately POSIX-only —
-  the run claim is a `FileChannel` lock, process trees come from
-  `ProcessHandle`, and both work on Windows — but CI does not run there, so it is
-  unsupported rather than known-broken.
+- **Windows runs in CI, with one gap.** The suite runs on `windows-latest`, so
+  the freeze package's symlink guards, the file-lock run claim, the git wrapper
+  and both end-to-end journeys are all exercised there. Adding that job found two
+  real bugs — the harness looked for `mvn` rather than `mvn.cmd` and so could not
+  start a build at all, and the run claim locked the bytes the pid was stored in,
+  which is advisory on Unix but mandatory on Windows. Both are fixed. The gap is
+  `ProcRunnerTest`, which drives `sh` and is skipped there; that is the tests'
+  limitation rather than the code's.
 - **Laptops are noisy.** macOS P/E core scheduling makes numbers jump.
   Interleaving and `count` mitigate it and `doctor` warns you, but a quiet Linux
   box gives cleaner results.

@@ -55,9 +55,24 @@ public final class MavenBuildTool implements BuildTool {
      * against the worktree would build the wrong tree's Maven configuration.
      */
     private String exe(Path treeRoot) {
-        if (!wrapper) return "mvn";
-        Path w = treeRoot.resolve(isWindows() ? "mvnw.cmd" : "mvnw");
-        return Files.isRegularFile(w) ? w.toAbsolutePath().toString() : "mvn";
+        boolean windows = isWindows();
+        if (wrapper) {
+            Path w = treeRoot.resolve(windows ? "mvnw.cmd" : "mvnw");
+            if (Files.isRegularFile(w)) return w.toAbsolutePath().toString();
+        }
+        return defaultExecutable(windows);
+    }
+
+    /**
+     * The launcher to look for on PATH.
+     *
+     * <p>"mvn.cmd", not "mvn", on Windows: Maven there is a batch script, and
+     * ProcessBuilder resolves a PATH entry literally rather than trying the
+     * PATHEXT extensions a shell would. Asking for "mvn" fails with "The system
+     * cannot find the file specified" and no hint as to why.
+     */
+    static String defaultExecutable(boolean windows) {
+        return windows ? "mvn.cmd" : "mvn";
     }
 
     static boolean isWindows() {

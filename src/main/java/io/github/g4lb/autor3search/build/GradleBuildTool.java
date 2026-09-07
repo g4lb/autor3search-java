@@ -81,9 +81,21 @@ public final class GradleBuildTool implements BuildTool {
     }
 
     private String exe(Path treeRoot) {
-        if (!wrapper) return "gradle";
-        Path w = treeRoot.resolve(MavenBuildTool.isWindows() ? "gradlew.bat" : "gradlew");
-        return Files.isRegularFile(w) ? w.toAbsolutePath().toString() : "gradle";
+        boolean windows = MavenBuildTool.isWindows();
+        if (wrapper) {
+            Path w = treeRoot.resolve(windows ? "gradlew.bat" : "gradlew");
+            if (Files.isRegularFile(w)) return w.toAbsolutePath().toString();
+        }
+        return defaultExecutable(windows);
+    }
+
+    /**
+     * The launcher to look for on PATH. See
+     * {@link MavenBuildTool#defaultExecutable}: ProcessBuilder will not find
+     * "gradle" on Windows, where the launcher is gradle.bat.
+     */
+    static String defaultExecutable(boolean windows) {
+        return windows ? "gradle.bat" : "gradle";
     }
 
     /**

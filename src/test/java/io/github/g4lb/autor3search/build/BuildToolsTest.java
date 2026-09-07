@@ -113,6 +113,21 @@ class BuildToolsTest {
         assertEquals(".", BuildTools.forModule(root, "maven", "  ").moduleDir());
     }
 
+    /**
+     * ProcessBuilder resolves a PATH entry literally — it does not try the PATHEXT
+     * extensions a shell would — so asking for "mvn" on Windows fails with "the
+     * system cannot find the file specified" and the harness cannot drive the
+     * build at all. Asserted for both platforms from either, because the bug is
+     * invisible on the one most of this is developed on.
+     */
+    @Test
+    void launcherNamesMatchThePlatformTheyRunOn() {
+        assertEquals("mvn", MavenBuildTool.defaultExecutable(false));
+        assertEquals("mvn.cmd", MavenBuildTool.defaultExecutable(true));
+        assertEquals("gradle", GradleBuildTool.defaultExecutable(false));
+        assertEquals("gradle.bat", GradleBuildTool.defaultExecutable(true));
+    }
+
     @Test
     void mavenRejectsEveryPomAndMavenConfigFile(@TempDir Path root) throws IOException {
         touch(root, "pom.xml");

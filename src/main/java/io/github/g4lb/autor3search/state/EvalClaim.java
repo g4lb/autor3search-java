@@ -29,6 +29,19 @@ public final class EvalClaim implements AutoCloseable {
     /** The pid file, relative to a run's state directory. */
     public static final String PID_FILE = "eval.pid";
 
+    /**
+     * The byte the claim is taken on — far past any content the file will ever
+     * hold, and locked one byte wide.
+     *
+     * <p>Not the whole file, and this is not tidiness. A byte-range lock is
+     * ADVISORY on Unix but MANDATORY on Windows: locking the region the pid lives
+     * in makes every reader fail, and the readers are the whole point. {@link
+     * #running} reads the pid precisely while a claim is held, and {@link #acquire}
+     * reads it to name the incumbent when it refuses. Locking a byte nothing will
+     * ever write leaves the conflict semantics intact and the file readable.
+     */
+    private static final long CLAIM_BYTE = 1L << 62;
+
     private final Path path;
     private final RandomAccessFile file;
     private final FileLock lock;
@@ -46,7 +59,7 @@ public final class EvalClaim implements AutoCloseable {
         RandomAccessFile raf = new RandomAccessFile(path.toFile(), "rw");
         FileLock lock;
         try {
-            lock = raf.getChannel().tryLock();
+            lock = raf.getChannel().tryLock(CLAIM_BYTE, 1, false);
         } catch (OverlappingFileLockException e) {
             raf.close();
             throw new IOException("another autor3search-java eval is already running for this run");
@@ -129,7 +142,7 @@ public final class EvalClaim implements AutoCloseable {
              FileChannel ch = raf.getChannel()) {
             FileLock probe;
             try {
-                probe = ch.tryLock(0L, Long.MAX_VALUE, true);
+                probe = ch.tryLock(CLAIM_BYTE, 1, true);
             } catch (OverlappingFileLockException e) {
                 // Held by this very JVM — which happens in the test suite, and would
                 // happen if a future command ever ran an eval in-process.

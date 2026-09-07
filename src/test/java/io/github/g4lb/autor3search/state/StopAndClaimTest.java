@@ -9,6 +9,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -73,6 +74,9 @@ class StopAndClaimTest {
     void aHeldClaimIsVisibleAndReleasedOnClose(@TempDir Path dir) throws IOException {
         long pid = ProcessHandle.current().pid();
         try (EvalClaim claim = EvalClaim.acquire(dir, pid)) {
+            assertNotNull(claim);
+            // Read back WHILE the claim is held. On Windows a byte-range lock is
+            // mandatory, so a claim taken over the pid itself would make this fail.
             EvalClaim.State state = EvalClaim.running(dir);
             assertTrue(state.running());
             assertEquals(pid, state.pid());
@@ -84,6 +88,7 @@ class StopAndClaimTest {
     @Test
     void aSecondClaimOnTheSameRunIsRefused(@TempDir Path dir) throws IOException {
         try (EvalClaim first = EvalClaim.acquire(dir, ProcessHandle.current().pid())) {
+            assertNotNull(first);
             IOException e = assertThrows(IOException.class,
                     () -> EvalClaim.acquire(dir, ProcessHandle.current().pid()));
             assertTrue(e.getMessage().contains("already running"), e.getMessage());
