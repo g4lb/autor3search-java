@@ -1,0 +1,37 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # A results.tsv row is only as reproducible as the binary that produced it,
+      # so the commit is stamped into the jar and `version` reports it back.
+      - name: build the release jar
+        run: |
+          mvn -B --no-transfer-progress -DskipTests \
+            -DbuildCommit="$(git rev-parse --short HEAD)" package
+          java -jar target/autor3search-java.jar version
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            target/autor3search-java.jar \
+            bin/autor3search-java

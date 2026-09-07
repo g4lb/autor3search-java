@@ -1,0 +1,43 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21', '25']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - name: build
+        run: mvn -B --no-transfer-progress -DskipTests package
+      # The end-to-end tests drive real Maven and Gradle builds and real forked
+      # benchmark JVMs. They are the only thing that proves the harness can drive
+      # a build tool at all, so they run on every JDK in the matrix rather than
+      # being relegated to one.
+      - name: test
+        run: mvn -B --no-transfer-progress test
+      - name: the jar runs
+        run: java -jar target/autor3search-java.jar version
+
+  # macOS is a first-class target: it is where most of this will actually be run
+  # from, and it is the platform whose P/E core scheduling `doctor` warns about.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: mvn -B --no-transfer-progress test

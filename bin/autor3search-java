@@ -1,0 +1,44 @@
+#!/bin/sh
+# Launcher for autor3search-java.
+#
+# Resolves the jar next to this script, then one directory up under target/, so
+# the same wrapper works for an installed release and for a source checkout that
+# has just been built.
+set -e
+
+self=$0
+# Follow symlinks so an install into ~/.local/bin still finds its own jar.
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *)  self=$(dirname "$self")/$link ;;
+  esac
+done
+here=$(cd "$(dirname "$self")" && pwd)
+
+for candidate in \
+  "$here/autor3search-java.jar" \
+  "$here/../lib/autor3search-java.jar" \
+  "$here/../target/autor3search-java.jar"
+do
+  if [ -f "$candidate" ]; then
+    jar=$candidate
+    break
+  fi
+done
+
+if [ -z "${jar:-}" ]; then
+  echo "autor3search-java: cannot find autor3search-java.jar next to $here" >&2
+  echo "Build it with 'mvn -DskipTests package', or download it from" >&2
+  echo "https://github.com/g4lb/autor3search-java/releases/latest" >&2
+  exit 64
+fi
+
+if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  java=$JAVA_HOME/bin/java
+else
+  java=java
+fi
+
+exec "$java" -jar "$jar" "$@"

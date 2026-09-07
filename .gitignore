@@ -1,0 +1,18 @@
+# Build output.
+target/
+
+# Working notes and planning artifacts. Deliberately not published: they are
+# the scaffolding of how this was built, not part of the tool.
+docs/
+
+# What the harness writes into a repository it is optimizing. Present here
+# only if someone points autor3search-java at its own checkout.
+.autor3search/
+results.tsv
+run.log
+
+# Editors and OS noise.
+.idea/
+*.iml
+.vscode/
+.DS_Store

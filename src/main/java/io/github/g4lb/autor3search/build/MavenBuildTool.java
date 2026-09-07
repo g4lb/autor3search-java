@@ -1,0 +1,135 @@
+package io.github.g4lb.autor3search.build;
+
+import io.github.g4lb.autor3search.runner.ProcResult;
+import io.github.g4lb.autor3search.runner.ProcRunner;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Drives a Maven build. */
+public final class MavenBuildTool implements BuildTool {
+
+    /**
+     * Pinned rather than left to the project's own plugin management. An
+     * unversioned {@code dependency:build-classpath} resolves to whatever the
+     * project (or the superpom) happens to pin, which differs between the
+     * repository and a fresh CI checkout — and a classpath resolved by two
+     * different plugin versions is exactly the kind of difference that makes a
+     * baseline and a candidate incomparable for reasons unrelated to the code.
+     */
+    private static final String DEPENDENCY_PLUGIN =
+            "org.apache.maven.plugins:maven-dependency-plugin:3.9.0:build-classpath";
+
+    private final String moduleDir;
+    private final boolean wrapper;
+
+    MavenBuildTool(String moduleDir, boolean wrapper) {
+        this.moduleDir = moduleDir;
+        this.wrapper = wrapper;
+    }
+
+    @Override
+    public String name() {
+        return "maven";
+    }
+
+    @Override
+    public String moduleDir() {
+        return moduleDir;
+    }
+
+    @Override
+    public String describe() {
+        return "maven (" + (wrapper ? "./mvnw" : "mvn on PATH") + ", module " + moduleDir + ")";
+    }
+
+    /**
+     * The executable for one tree. The wrapper is resolved against that tree's own
+     * root rather than cached, because the pinned baseline worktree is a separate
+     * checkout with its own {@code mvnw} — and running the repository's wrapper
+     * against the worktree would build the wrong tree's Maven configuration.
+     */
+    private String exe(Path treeRoot) {
+        if (!wrapper) return "mvn";
+        Path w = treeRoot.resolve(isWindows() ? "mvnw.cmd" : "mvnw");
+        return Files.isRegularFile(w) ? w.toAbsolutePath().toString() : "mvn";
+    }
+
+    static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase().startsWith("windows");
+    }
+
+    private List<String> base(Path treeRoot) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(exe(treeRoot));
+        cmd.add("-B");
+        cmd.add("--no-transfer-progress");
+        return cmd;
+    }
+
+    @Override
+    public ProcResult compile(Path treeRoot, ProcRunner runner) throws IOException {
+        List<String> cmd = base(treeRoot);
+        cmd.add("-DskipTests");
+        cmd.add("test-compile");
+        return runner.run(cmd);
+    }
+
+    @Override
+    public ProcResult test(Path treeRoot, ProcRunner runner) throws IOException {
+        List<String> cmd = base(treeRoot);
+        cmd.add("test");
+        return runner.run(cmd);
+    }
+
+    /**
+     * Resolves the test-scope classpath and prepends the module's own compiled
+     * output.
+     *
+     * <p>The plugin is asked to write a FILE rather than to print, because its
+     * stdout is interleaved with Maven's reactor output and with any other plugin
+     * that logs during the same run. Parsing a classpath out of that is a guess,
+     * and a wrong guess here is a benchmark that silently cannot find its own
+     * classes.
+     */
+    @Override
+    public String benchClasspath(Path treeRoot, ProcRunner runner) throws IOException {
+        Path module = moduleRoot(treeRoot);
+        Path out = Files.createTempFile("autor3search-cp", ".txt");
+        try {
+            List<String> cmd = base(treeRoot);
+            cmd.add("-DskipTests");
+            cmd.add("-Dmdep.outputFile=" + out.toAbsolutePath());
+            cmd.add("-Dmdep.includeScope=test");
+            cmd.add(DEPENDENCY_PLUGIN);
+            ProcResult res = runner.run(cmd);
+            if (!res.ok()) {
+                throw new BuildToolException("maven could not resolve the benchmark classpath in " + module
+                        + " (exit " + res.exitCode() + "):\n" + res.tail(30)
+                        + "\n\nIn a multi-module build, run `mvn -DskipTests install` at the repository root"
+                        + " once so sibling modules resolve from the local repository.");
+            }
+            String deps = Files.exists(out) ? Files.readString(out, StandardCharsets.UTF_8).trim() : "";
+            List<String> entries = new ArrayList<>();
+            entries.add(module.resolve("target/classes").toString());
+            entries.add(module.resolve("target/test-classes").toString());
+            if (!deps.isEmpty()) entries.add(deps);
+            return String.join(File.pathSeparator, entries);
+        } finally {
+            Files.deleteIfExists(out);
+        }
+    }
+
+    @Override
+    public boolean isDependencyFile(String rel) {
+        String s = rel.replace('\\', '/');
+        return s.equals("pom.xml") || s.endsWith("/pom.xml")
+                || s.equals(".mvn/extensions.xml") || s.endsWith("/.mvn/extensions.xml")
+                || s.equals(".mvn/maven.config") || s.endsWith("/.mvn/maven.config");
+    }
+}
