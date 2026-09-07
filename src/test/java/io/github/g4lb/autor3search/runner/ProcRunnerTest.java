@@ -1,6 +1,8 @@
 package io.github.g4lb.autor3search.runner;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -15,6 +17,15 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Unix-only because the TESTS drive {@code sh}, not because the code under test
+ * is. {@link ProcRunner} uses nothing platform-specific — {@code ProcessBuilder},
+ * {@code ProcessHandle} and threads — but exercising it needs a subprocess that
+ * echoes, writes to stderr, sleeps and spawns a grandchild on demand, and the
+ * shell is the only thing that does all four in one line. Rewriting these scripts
+ * for {@code cmd} would test the scripts as much as the runner.
+ */
+@EnabledOnOs({OS.LINUX, OS.MAC})
 class ProcRunnerTest {
 
     private static ProcRunner runner(Path dir, Duration timeout) {

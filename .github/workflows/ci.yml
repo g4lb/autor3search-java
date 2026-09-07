@@ -41,3 +41,25 @@ jobs:
           java-version: '21'
           cache: maven
       - run: mvn -B --no-transfer-progress test
+
+  # Windows is a target the code goes out of its way not to exclude — the run
+  # claim is a FileChannel lock, process trees come from ProcessHandle, and the
+  # build wrappers are resolved as .cmd/.bat — but nothing had ever run there.
+  # This job guards what can run: everything except the tests that drive `sh`,
+  # which are the tests' limitation and not the harness's.
+  windows:
+    runs-on: windows-latest
+    steps:
+      # Before the checkout, and the reason this job has an extra step at all:
+      # the Windows runner image sets core.autocrlf=true, which would rewrite
+      # every checked-out file to CRLF. The freeze package hashes file contents
+      # byte for byte, so that rewrite alone would fail tests that have nothing
+      # wrong with them, on this platform only.
+      - run: git config --global core.autocrlf input
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: mvn -B --no-transfer-progress test
