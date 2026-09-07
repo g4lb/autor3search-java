@@ -176,17 +176,20 @@ class BuildToolsTest {
     @Test
     void bothToolsDriveTheBuildFromTheTreeRootAndNameTheModule(@TempDir Path root) throws IOException {
         touch(root, "pom.xml");
+        // Compared as real paths: Maven's working directory is deliberately
+        // resolved, so that its execution root is spelled the same way as the
+        // project directories it compares module selectors against.
         BuildTool maven = BuildTools.forModule(root, "maven", "core");
-        assertEquals(root, maven.workingDir(root));
+        assertEquals(root.toRealPath(), maven.workingDir(root).toRealPath());
         assertEquals(root.resolve("core"), maven.moduleRoot(root));
 
         BuildTool gradle = BuildTools.forModule(root, "gradle", "core");
-        assertEquals(root, gradle.workingDir(root));
+        assertEquals(root.toRealPath(), gradle.workingDir(root).toRealPath());
         assertEquals(root.resolve("core"), gradle.moduleRoot(root));
 
         // A single-module build has no module to select, so the two coincide.
         BuildTool single = BuildTools.forModule(root, "maven", ".");
-        assertEquals(root, single.workingDir(root));
+        assertEquals(root.toRealPath(), single.workingDir(root).toRealPath());
         assertEquals(root, single.moduleRoot(root));
     }
 }

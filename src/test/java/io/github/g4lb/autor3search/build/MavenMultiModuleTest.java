@@ -76,7 +76,8 @@ class MavenMultiModuleTest {
 
         BuildTool tool = BuildTools.forModule(root, "maven", "app");
         // Commands must run from the reactor root, or -pl cannot select anything.
-        assertTrue(tool.workingDir(root).equals(root), "maven must drive a reactor from its root");
+        assertTrue(real(tool.workingDir(root)).equals(real(root)),
+                "maven must drive a reactor from its root");
 
         ProcRunner runner = new ProcRunner(tool.workingDir(root), Duration.ofMinutes(10), null);
         ProcResult compiled = tool.compile(root, runner);

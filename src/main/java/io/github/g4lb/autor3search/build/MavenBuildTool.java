@@ -98,7 +98,7 @@ public final class MavenBuildTool implements BuildTool {
      */
     @Override
     public Path workingDir(Path treeRoot) {
-        return treeRoot;
+        return real(treeRoot);
     }
 
     private List<String> base(Path treeRoot) {
@@ -108,10 +108,27 @@ public final class MavenBuildTool implements BuildTool {
         cmd.add("--no-transfer-progress");
         if (!moduleDir.equals(".")) {
             cmd.add("-pl");
-            cmd.add(moduleDir);
+            // A path RELATIVE to the execution root, in the platform's own
+            // separators. Maven rejects an absolute selector outright, and it
+            // resolves a relative one against its execution root before comparing
+            // with each project's directory — which is why workingDir above
+            // resolves that root. Left unresolved, the two sides can spell the same
+            // directory differently (a Windows 8.3 short name against its long
+            // form, /var against /private/var) and the reactor then reports "Could
+            // not find the selected project", which says nothing about the cause.
+            cmd.add(moduleDir.replace('/', java.io.File.separatorChar));
             cmd.add("-am");
         }
         return cmd;
+    }
+
+    /** The path with symlinks and short names resolved, or unchanged if it does not exist yet. */
+    private static Path real(Path p) {
+        try {
+            return p.toRealPath();
+        } catch (IOException e) {
+            return p.toAbsolutePath().normalize();
+        }
     }
 
     @Override
