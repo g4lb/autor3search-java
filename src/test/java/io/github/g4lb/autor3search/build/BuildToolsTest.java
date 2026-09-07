@@ -160,22 +160,33 @@ class BuildToolsTest {
     }
 
     /**
-     * The two tools address a module in opposite ways: Maven by being run inside
-     * it, Gradle by project path from the settings file at the root. Running
-     * Gradle from the module directory would work only when that module happens to
-     * be a standalone build — which is exactly the kind of difference that works
-     * on the demo and fails on a real repository.
+     * Both tools drive the build from the TREE ROOT and name the module rather
+     * than being run inside it — Gradle by project path, Maven by {@code -pl}.
+     *
+     * <p>For Gradle that has always been necessary: it finds a project by path
+     * from the settings file at the root. For Maven it looks equivalent and is
+     * not. A module resolved from inside its own directory pulls its siblings from
+     * the local repository, so a sibling the agent just edited is measured from a
+     * stale installed jar — see {@link MavenMultiModuleTest}.
+     *
+     * <p>{@code moduleRoot} is a separate question and stays the module: that is
+     * where the benchmark JVM runs, so a benchmark reading a relative path finds
+     * the same files its own module's tests would.
      */
     @Test
-    void eachToolRunsFromTheDirectoryItAddressesModulesFrom(@TempDir Path root) throws IOException {
+    void bothToolsDriveTheBuildFromTheTreeRootAndNameTheModule(@TempDir Path root) throws IOException {
         touch(root, "pom.xml");
         BuildTool maven = BuildTools.forModule(root, "maven", "core");
-        assertEquals(root.resolve("core"), maven.workingDir(root));
+        assertEquals(root, maven.workingDir(root));
         assertEquals(root.resolve("core"), maven.moduleRoot(root));
 
         BuildTool gradle = BuildTools.forModule(root, "gradle", "core");
         assertEquals(root, gradle.workingDir(root));
-        assertEquals(root.resolve("core"), gradle.moduleRoot(root),
-                "the benchmark JVM still runs in the module");
+        assertEquals(root.resolve("core"), gradle.moduleRoot(root));
+
+        // A single-module build has no module to select, so the two coincide.
+        BuildTool single = BuildTools.forModule(root, "maven", ".");
+        assertEquals(root, single.workingDir(root));
+        assertEquals(root, single.moduleRoot(root));
     }
 }

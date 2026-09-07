@@ -79,11 +79,38 @@ public final class MavenBuildTool implements BuildTool {
         return System.getProperty("os.name", "").toLowerCase().startsWith("windows");
     }
 
+    /**
+     * Maven runs from the TREE ROOT and selects the module with {@code -pl}, not
+     * from inside the module.
+     *
+     * <p>Running inside it looks equivalent and is not. A module there resolves
+     * its siblings from the local repository — installed jars — so a sibling the
+     * agent has just edited is either missing entirely (the build fails with a
+     * dependency resolution error) or, once someone runs {@code mvn install} to
+     * make that go away, is measured from a STALE artifact that will never again
+     * reflect a single edit. The second outcome is far worse than the first: every
+     * experiment touching that module would be measured against code that did not
+     * change, and would DISCARD forever with nothing explaining why.
+     *
+     * <p>{@code -am} builds the modules the selected one depends on, from source,
+     * in the same reactor — which is also what makes the classpath below point at
+     * a sibling's {@code target/classes} rather than at its installed jar.
+     */
+    @Override
+    public Path workingDir(Path treeRoot) {
+        return treeRoot;
+    }
+
     private List<String> base(Path treeRoot) {
         List<String> cmd = new ArrayList<>();
         cmd.add(exe(treeRoot));
         cmd.add("-B");
         cmd.add("--no-transfer-progress");
+        if (!moduleDir.equals(".")) {
+            cmd.add("-pl");
+            cmd.add(moduleDir);
+            cmd.add("-am");
+        }
         return cmd;
     }
 
@@ -121,13 +148,16 @@ public final class MavenBuildTool implements BuildTool {
             cmd.add("-DskipTests");
             cmd.add("-Dmdep.outputFile=" + out.toAbsolutePath());
             cmd.add("-Dmdep.includeScope=test");
+            // test-compile FIRST, in the same invocation. The classpath goal on its
+            // own cannot resolve a sibling module that has not been built in this
+            // reactor session, and it is that same session which makes Maven hand
+            // back the sibling's target/classes instead of its installed jar.
+            cmd.add("test-compile");
             cmd.add(DEPENDENCY_PLUGIN);
             ProcResult res = runner.run(cmd);
             if (!res.ok()) {
-                throw new BuildToolException("maven could not resolve the benchmark classpath in " + module
-                        + " (exit " + res.exitCode() + "):\n" + res.tail(30)
-                        + "\n\nIn a multi-module build, run `mvn -DskipTests install` at the repository root"
-                        + " once so sibling modules resolve from the local repository.");
+                throw new BuildToolException("maven could not resolve the benchmark classpath for module "
+                        + moduleDir + " (exit " + res.exitCode() + "):\n" + res.tail(30));
             }
             String deps = Files.exists(out) ? Files.readString(out, StandardCharsets.UTF_8).trim() : "";
             List<String> entries = new ArrayList<>();

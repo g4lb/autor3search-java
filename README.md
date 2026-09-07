@@ -624,10 +624,14 @@ Stated plainly, because performance tools that oversell are worse than useless:
 - **Laptops are noisy.** macOS P/E core scheduling makes numbers jump.
   Interleaving and `count` mitigate it and `doctor` warns you, but a quiet Linux
   box gives cleaner results.
-- **One module per run.** A classpath belongs to one Maven module or Gradle
-  project. If benchmarks are found in more than one, `init` refuses and tells you
-  to narrow `benchmarks:` rather than merging two classpaths into a fiction that
-  matches neither module as it actually builds.
+- **One benchmark module per run, but the rest of the repository is still
+  measured.** A classpath belongs to one Maven module or Gradle project, so if
+  benchmarks are found in more than one, `init` refuses and tells you to narrow
+  `benchmarks:` rather than merging two classpaths into a fiction that matches
+  neither module as it actually builds. A change in a *sibling* module is fine
+  and is measured properly: Maven is driven from the reactor root with
+  `-pl <module> -am`, so siblings are rebuilt from source and reach the classpath
+  as their `target/classes` rather than as a stale installed jar.
 - **A small measurement asymmetry remains.** Each round measures one side a moment
   before the other, and the sides alternate; on an even `count` that cancels
   exactly, on an odd one a single round's worth of offset remains.
