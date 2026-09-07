@@ -152,6 +152,46 @@ class VerdictTest {
                 .anyMatch(w -> w.startsWith("no KEEP was reachable")));
     }
 
+    /**
+     * The most confusing outcome the harness produces: a visible double-digit
+     * improvement, discarded. Taken from a real run against org.json, where a
+     * change measuring -13.0% and -9.9% was rejected because neither benchmark
+     * cleared 0.05/4. Watching that happen without an explanation reads as the
+     * tool being broken.
+     */
+    @Test
+    void saysSoWhenAnImprovementLostToTheCorrectionRatherThanToNoise() {
+        List<Delta> deltas = List.of(
+                delta("parseArray", -13.0, 0.0185),
+                delta("parseObject", -9.9, 0.0355),
+                delta("writeObject", 1.1, 0.5787),
+                delta("xmlToJson", 2.0, 0.6842));
+        VerdictResult r = decide(deltas, 0.9482);
+        assertEquals(Status.DISCARD, r.status());
+        String warning = r.warnings().stream()
+                .filter(w -> w.contains("improved significantly at alpha"))
+                .findFirst().orElse("");
+        assertTrue(warning.contains("2 benchmark(s)"), warning);
+        assertTrue(warning.contains("raise count"), warning);
+    }
+
+    @Test
+    void saysNothingAboutTheCorrectionWhenSomethingClearedIt() {
+        List<Delta> deltas = List.of(
+                delta("a", -20, 0.001), delta("b", -9.9, 0.0355),
+                delta("c", 1.1, 0.6), delta("d", 2.0, 0.7));
+        assertEquals(Status.KEEP, decide(deltas, 0.9).status());
+        assertTrue(decide(deltas, 0.9).warnings().stream()
+                .noneMatch(w -> w.contains("improved significantly at alpha")));
+    }
+
+    /** With a single benchmark there is no correction, so there is nothing to explain. */
+    @Test
+    void saysNothingAboutTheCorrectionForASingleBenchmark() {
+        assertTrue(decide(List.of(delta("only", -5, 0.06)), 0.95).warnings().stream()
+                .noneMatch(w -> w.contains("improved significantly at alpha")));
+    }
+
     @Test
     void gateResultsCarryNoScoreAndTheRightExitCodes() {
         VerdictResult fail = VerdictResult.gate(Status.FAIL, Reason.SCOPE, "out of scope");

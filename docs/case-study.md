@@ -15,6 +15,8 @@ library. Every number here was measured; nothing is illustrative.
 | `count` | 10 interleaved rounds per side |
 | `benchtime` | 300 ms, 5 warmup + 5 measurement iterations, 1 fork |
 | Library test suite | ~9.5 s, run in full before every measurement |
+| Experiments | 10 — 4 kept, 5 discarded, 1 failed |
+| Harness | v0.1.2, the published release jar |
 
 **The library ships no benchmarks, so I wrote them.** That is not a shortcut
 around the design — it is the documented path in
@@ -27,30 +29,47 @@ picked to match a weakness I had already found. The benchmark file was then
 frozen at `baseline` like every other test source, so nothing after that point
 could touch it.
 
-This was a directed session of three experiments, not an unattended overnight
-run. Treat it as evidence the loop works end to end on real code, not as a claim
-about what a full night produces.
+This was a full loop of ten experiments driven by `program.md`, ended by
+`autor3search-java stop` rather than by running out of things to try.
 
 ## Result
 
-One optimization was found, verified against the library's own 59 frozen test
-files, and kept:
+**Cumulative: −25.1 %** across the declared benchmark set, geomean, from four
+kept experiments. Independently verified: applying all four changes at once to
+the original tree and measuring that as a single experiment gives **−26.1 %**,
+with every benchmark significant at p ≤ 0.001.
 
-| Benchmark | Change | p |
+| Benchmark | End-to-end change | p |
 |---|---:|---:|
-| `writeObject` | **−19.6 %** | < 0.001 |
-| `parseArray` | −0.6 % | 0.315 (not significant) |
-| `parseObject` | −0.5 % | 0.436 (not significant) |
-| `xmlToJson` | −0.3 % | 1.000 (not significant) |
+| `writeObject` | **−48.1 %** | 0.00001 |
+| `xmlToJson` | **−22.8 %** | 0.00105 |
+| `parseObject` | **−13.9 %** | 0.00001 |
+| `parseArray` | **−13.6 %** | 0.00001 |
 
-Percentages are the harness's own output — the change in the median of ten
-interleaved rounds per side. Absolute `ns/op` figures are deliberately not
-quoted: they are meaningful only against this machine, this JDK and this input,
-whereas the ratio is what the verdict is actually made from.
+That verification matters beyond this library. The harness advances its
+measurement baseline after every KEEP, so each kept score is only that
+experiment's own contribution and `report` composes the run total by
+**multiplying** them. Nothing had ever checked that the product corresponds to
+reality. 25.1 % composed against 26.1 % measured, on four benchmarks over four
+compounding changes, says the design does what it claims.
 
-**Cumulative: −5.6 %** across the declared set, geomean. No benchmark regressed.
+### The four changes that were kept
 
-### What the change was
+| # | Change | Effect |
+|---|---|---|
+| 1 | `JSONObject.quote` writes runs of ordinary characters in one call instead of one call per character | `writeObject` −20.1 % |
+| 3 | `JSONTokener` reads a `String` source through a non-synchronizing `Reader` | `parseObject` −15.0 %, `parseArray` −13.7 % |
+| 4 | `XML.toJSONObject(String)` uses that reader too, instead of building its own `StringReader` | `xmlToJson` −21.6 % |
+| 5 | The write path scans the JSON number grammar directly instead of matching a regex per number | `writeObject` −33.9 % |
+
+Experiments 3 and 4 are the same insight applied twice: `StringReader.read()` is
+`synchronized`, and the tokener reads one character at a time, so parsing a
+12 KB document cost twelve thousand uncontended lock acquisitions. Experiment 4
+exists because `XML.toJSONObject(String)` builds its own `StringReader` and
+bypasses the tokener's `String` constructor entirely — which is why `xmlToJson`
+was the one benchmark experiment 3 did not move.
+
+### What the first change was, in full
 
 `JSONObject.quote(String, Writer)` — the function that writes every key and every
 string value of every document the library serializes — wrote **one character at
@@ -100,75 +119,74 @@ suite was there to confirm, and did.
 
 ```
 commit    score   best_bench_delta  bytes_delta  status   description
-12afd5c   0.9436  -19.62            -0.00        keep     quote-batch-runs
-80ce452   0.9789   -3.33            -5.51        discard  int-without-biginteger
-d5c2385   0.9908   -1.78            -0.00        discard  delimiter-switch
+70c3916   0.9433  -20.10             -0.00       keep     quote-batch-runs
+a4bab52   0.0000    0.00              0.00       fail     unsync-string-reader
+dd71831   0.9207  -14.96             -1.04       keep     unsync-string-reader-v2
+5e20ef9   0.9388  -21.56             -0.01       keep     xml-unsync-reader
+44ee18a   0.9186  -33.94            -22.02       keep     no-regex-per-number
+25ee804   0.9657   -7.46             -0.00       discard  delimiter-switch
+61caf16   0.9825   -2.80             -6.54       discard  int-without-biginteger
+85a2298   0.9839   -3.14             -6.60       discard  combined-parse-near-misses
+d599aea   0.9616   -5.86             -0.00       discard  delimiter-switch-retry
+faa806c   0.9482  -13.00              9.34       discard  presize-token-buffers
 ```
 
-Two of the three experiments were discarded, and both discards are more
-interesting than the win.
+Four kept, five discarded, one failed. The six that did not stick are the more
+interesting half.
 
-## The discard that was right, and looked wrong
+## The failure: the tests caught a real regression
 
-`stringToNumber` allocates a `BigInteger` for **every integer in the document**,
-purely to decide whether the value fits in an `int` or a `long`. The library's
-own comment concedes the cost:
+Experiment 2 replaced `StringReader` with a non-synchronizing reader, and the
+constructor was written defensively:
 
 ```java
-// BigInteger down conversion: We use a similar bitLength compare as
-// BigInteger#intValueExact uses. Increases GC, but objects hold
-// only what they need.
+this.source = source == null ? "" : source;
 ```
 
-Narrowing short values with `Long.parseLong` first — 18 digits always fit, so the
-returned types are provably unchanged — produced this:
+`StringReader`'s own constructor throws on a null source, and three of the
+library's tests depend on that — `exceptionOnNullString`, `nullXMLException`,
+`nullCookieException`. Swallowing the null turned an exception into an empty
+document. `FAIL`, `tests_failed`, commit dropped.
 
-```
-JsonBenchmark.parseArray    -2.4%  [p=0.247 n=10]  (not significant)
-  B/op                      -6.5%  (140177 -> 131105)
-JsonBenchmark.parseObject   -3.3%  [p=0.143 n=10]  (not significant)
-  B/op                      -5.5%  (140945 -> 133185)
-JsonBenchmark.xmlToJson     -1.8%  [p=0.123 n=10]  (not significant)
+This is the whole design in one experiment. A performance change quietly altered
+behaviour at an edge nobody optimizing would think about, the library's own
+frozen tests rejected it, and the fix — reproduce `StringReader`'s throw
+faithfully — turned it into experiment 3, which was kept and is worth −15 %.
+The gate did not slow the run down; it is the reason the run produced something
+correct.
 
-SCORE  0.979  (-2.1%)
-VERDICT: DISCARD
-```
+## The discards: an effect the run could not resolve
 
-Every benchmark moved the right way. Allocations fell by a measured 6.5 %. The
-score of 0.979 cleared the 1 % minimum-effect floor. And it was still discarded,
-because **not one benchmark cleared the Bonferroni-corrected significance
-threshold** of `0.05/4 = 0.0125`.
+Three discards are one idea measured three times. Replacing a linear
+`String.indexOf` scan over twelve delimiters with a `switch` — asked once per
+character of every number and boolean in the document — gave:
 
-That is the harness working, not failing. Four benchmarks tested at an
-uncorrected `alpha` would give roughly an 18 % chance that one looks significant
-when nothing changed; the correction is what stops a run banking that. A −2.1 %
-geomean built entirely from p-values between 0.12 and 0.25 is exactly the shape
-of a result that might be real and might be the machine.
+| Attempt | `parseArray` | `parseObject` | machine load |
+|---|---:|---:|---:|
+| exp 6 | −4.89 % (p=0.063) | −7.46 % (p=0.036) | 6.05 |
+| exp 8, combined with another near-miss | −1.93 % | −3.14 % | — |
+| exp 9, re-run on a quiet machine | −5.54 % (p=0.023) | −2.65 % (p=0.48) | 1.79 |
 
-What it should tell an agent is not "the idea was wrong" — the allocation
-reduction is real and measured — but "this needs more evidence than the run is
-configured to collect." Raising `count` is the response; banking it is not.
+The same code, three times, between −1.9 % and −7.5 %. The effect is real and
+the harness never banked it, because with four benchmarks a KEEP needs
+`p < 0.05/4 = 0.0125` and nothing reached it.
 
-## The discard that was simply too small
+Experiment 10 is the sharpest version. Presizing the tokeniser's accumulators
+measured **−13.0 %** and **−9.9 %**, at p = 0.0185 and p = 0.0355 — significant
+at alpha, comfortably past the 1 % effect floor, and still discarded.
 
-`nextSimpleValue` asks, for **every character of every number, boolean and
-null**, whether that character terminates the token — by calling
-`",:]}/\\\"[{;=#".indexOf(c)`, a linear scan of twelve characters. Replacing it
-with a `switch` is textbook.
+Watching a visible double-digit improvement get thrown away reads as the tool
+being broken. It is not: at `count: 10` on a laptop, with four benchmarks
+splitting the significance budget, a ~10 % effect sits right at the resolution
+limit. **The answer is to raise `count`, and the harness did not say so** — the
+per-benchmark line noted "significant at alpha, not at corrected alpha/4" and
+left the reader to work out the rest. That was fixed as a result of this run:
+a discard whose improvement lost to the correction, rather than to noise, now
+says so and names the knob.
 
-```
-SCORE  0.991  (-0.9%)   min effect: 1.0%
-VERDICT: DISCARD
-```
-
-Directionally right on three of four benchmarks and worth about 0.9 % — which
-lands just the wrong side of the 1 % floor. This is the floor doing its job: in
-an unattended loop, a sub-1 % change is not worth a commit, and the run should
-spend the night on bigger ideas.
-
-Both discards are also the advancing measurement baseline earning its keep. Each
-was measured against the *kept* `quote` commit, not against where the run
-started, so neither could coast on the −19.6 % already banked.
+The `int-without-biginteger` discard is the other kind. Allocations fell a
+measured 6.5 %, every benchmark moved the right way, and the p-values were
+0.44–0.91. That one really is indistinguishable from the machine.
 
 ## What this run found in the tool itself
 
@@ -188,18 +206,31 @@ the demo project could not have:
    correctly and running fine. It now reads the config first.
 
 Neither was reachable from the bundled demo, which has one build file and is
-always detected. Both are in the release that follows this run.
+always detected.
+
+3. **A discard could not explain itself.** Experiment 10 above measured −13.0 %
+   and −9.9 % and was thrown away. That is correct behaviour, and it looked like
+   a malfunction. `eval` now says when an improvement lost to the Bonferroni
+   correction rather than to noise, and names the knob that fixes it.
+
+The first two shipped in v0.1.1, the third in the release that follows this run.
 
 ## Caveats
 
-- **Three experiments, not a night.** A directed session proves the loop runs on
-  real code. It says nothing about what thirty unattended experiments do.
+- **Ten experiments on one library.** Enough to show the loop sustains itself,
+  finds real wins, rejects real noise and stops cleanly. Not enough to say what
+  it does against a codebase a hundred times larger, where the test suite alone
+  may cost minutes per experiment.
+- **The configuration was too tight for the last third of the run.** Four
+  benchmarks at `count: 10` could not resolve a 10 % effect. A second run at
+  `count: 20` would very likely have banked two more of the discards — at twice
+  the wall time per experiment.
 - **I wrote the benchmarks.** Mitigated by choosing them from the public API
   before profiling, and by freezing them, but not eliminated. A library that
   ships its own would be stronger evidence.
-- **One machine, one JDK, one afternoon.** macOS on P/E cores is the noisy end of
-  the range; `doctor` warns about it, and the two discards are what that noise
-  looks like when the statistics refuse to over-read it.
+- **One machine, one JDK.** macOS on P/E cores is the noisy end of the range,
+  and `doctor` warned about it at baseline: load average 6.05 against a threshold
+  of 5.00. The discards are what that warning looks like in the results.
 - **`writeObject`'s win does not transfer to every workload.** It helps
   serialization of string-heavy documents. A caller that only parses sees
   nothing, which is exactly what the other three benchmarks report.

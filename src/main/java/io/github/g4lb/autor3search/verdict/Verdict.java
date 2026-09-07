@@ -116,7 +116,44 @@ public final class Verdict {
         }
         String unreachable = unreachableAlphaWarning(deltas, k);
         if (unreachable != null) out.add(unreachable);
+        String nearMiss = correctionNearMissWarning(deltas, k);
+        if (nearMiss != null) out.add(nearMiss);
         return List.copyOf(out);
+    }
+
+    /**
+     * Reports when an improvement was significant at the raw alpha but lost to the
+     * Bonferroni correction.
+     *
+     * <p>This is the single most confusing outcome the harness produces. The
+     * per-benchmark line already says "significant at alpha, not at corrected
+     * alpha/k", but a reader watching a run discard a visible double-digit
+     * improvement wants to know whether the tool is broken or whether they should
+     * change something — and the answer is neither obvious nor the same every
+     * time. It is worth saying plainly, once, next to the verdict.
+     *
+     * <p>It fires only when NO benchmark cleared the corrected threshold, because
+     * otherwise the experiment was kept and the question does not arise.
+     */
+    static String correctionNearMissWarning(List<Delta> deltas, int k) {
+        if (k < 2) return null; // with one benchmark there is no correction to lose to
+        int nearMisses = 0;
+        double best = 1;
+        for (Delta d : deltas) {
+            if (d.pctChange() >= 0) continue;
+            if (d.p() < d.alpha() / k) return null; // something cleared it; this was a KEEP
+            if (d.significant()) {
+                nearMisses++;
+                best = Math.min(best, d.p());
+            }
+        }
+        if (nearMisses == 0) return null;
+        return String.format(Locale.ROOT,
+                "%d benchmark(s) improved significantly at alpha=%.2f (best p=%.4f) but not at the"
+                        + " %.4f a KEEP requires once corrected for comparing %d benchmarks. The effect may"
+                        + " well be real and simply not resolvable at this count — if this keeps happening,"
+                        + " raise count or measure fewer benchmarks.",
+                nearMisses, deltas.get(0).alpha(), best, deltas.get(0).alpha() / k, k);
     }
 
     /**

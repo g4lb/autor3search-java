@@ -16,18 +16,20 @@ This does it for the JVM — where the metric comes from JMH, where the machine 
 to be warmed up before it can be measured at all, and where **correctness is not
 optional**.
 
-> **Status: early but working.** Validated against a real third-party library —
-> `org.json` (JSON-java), where it found and kept a **−19.6 %** win in the
-> serialization path, verified against that library's own 59 frozen test files.
-> Every number in this README and in [the case study](docs/case-study.md) is a
-> real measurement, never an illustration. The case study also records the two
-> bugs that run found in the tool itself, and — more usefully — the two
-> experiments the harness *refused* to bank and why.
+> **Status: early but working.** A full ten-experiment loop against a real
+> third-party library — `org.json` (JSON-java) — kept four optimizations worth a
+> **cumulative −25.1 %**, verified against that library's own 59 frozen test
+> files. Measuring all four at once end to end gives −26.1 %, which is the first
+> real check that composing kept scores by multiplication matches reality.
 >
-> What it has not yet had is a long unattended night against a large codebase.
-> A full journey through `init`, `baseline`, a real optimization, a restored test
-> and a stop runs in CI against real Maven and real Gradle builds on every
-> supported JDK.
+> Every number in this README and in [the case study](docs/case-study.md) is a
+> real measurement, never an illustration. The case study is worth reading for
+> the six experiments that did *not* stick: one that the library's tests caught
+> altering behaviour, and five the statistics refused to bank — including a
+> genuine −13 % the harness threw away, and what that says about configuring a
+> run.
+>
+> What it has not had is a night against a codebase a hundred times larger.
 
 ---
 
