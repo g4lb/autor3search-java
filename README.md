@@ -16,13 +16,18 @@ This does it for the JVM — where the metric comes from JMH, where the machine 
 to be warmed up before it can be measured at all, and where **correctness is not
 optional**.
 
-> **Status: early.** The harness is complete and tested end to end — a full
-> journey through `init`, `baseline`, a real optimization, a restored test and a
-> stop runs in CI against real Maven and real Gradle builds on every supported
-> JDK. What it has *not* yet had is a long unattended night against a large
-> third-party library. Every number below is a real measurement from this
-> machine, never an illustration; there are just fewer of them than there will
-> be.
+> **Status: early but working.** Validated against a real third-party library —
+> `org.json` (JSON-java), where it found and kept a **−19.6 %** win in the
+> serialization path, verified against that library's own 59 frozen test files.
+> Every number in this README and in [the case study](docs/case-study.md) is a
+> real measurement, never an illustration. The case study also records the two
+> bugs that run found in the tool itself, and — more usefully — the two
+> experiments the harness *refused* to bank and why.
+>
+> What it has not yet had is a long unattended night against a large codebase.
+> A full journey through `init`, `baseline`, a real optimization, a restored test
+> and a stop runs in CI against real Maven and real Gradle builds on every
+> supported JDK.
 
 ---
 
@@ -254,7 +259,7 @@ clear any pending stop and point the agent back at `program.md`.
 
 | Command | What it does |
 |---|---|
-| `init` | Scans the repo, discovers `@Benchmark` methods by reading the source, detects the build tool, and writes `.autor3search/config.yaml` + `program.md`. Refuses to overwrite an existing config without `-force`. |
+| `init` | Scans the repo, discovers `@Benchmark` methods by reading the source, detects the build tool, and writes `.autor3search/config.yaml` + `program.md`. Takes `-build-tool maven\|gradle` for a repository carrying both build files. Refuses to overwrite an existing config without `-force`. |
 | `doctor` | Checks whether this machine can measure reliably (JDK, git, build tool, CPU count, load average, CPU governor, disk) and prints its findings. Informational — always exits 0. |
 | `baseline -tag <tag>` | Creates the run branch `autor3search-java/<tag>`, freezes every test and `@Benchmark` source, and pins a detached worktree at the baseline commit. Refuses a dirty tree, a reused tag, and a config naming a benchmark that does not exist. |
 | `profile` | Runs the declared benchmarks under JMH's sampling stack profiler and its GC profiler and prints where the time and the allocations actually go — real data rather than an agent guessing from reading source. Keeps the full transcript under `.autor3search/profiles/`. |
@@ -566,11 +571,12 @@ Stated plainly, because performance tools that oversell are worse than useless:
   as evidence worth banking, not as proof the change works. `min_effect_pct` is
   the knob for this: raise it on a noisy machine, since it costs you only wins
   smaller than the noise you cannot measure anyway.
-- **No long unattended run against a large third-party library yet.** Everything
-  here is exercised end to end, on every supported JDK, against a small demo
-  project. That validates the mechanism; it does not yet tell you what a night
-  against a hundred-thousand-line codebase looks like. If you run one, the
-  results — good or bad — are worth an issue.
+- **No long unattended run yet.** The tool has been driven end to end against a
+  real library ([case study](docs/case-study.md)) and against the bundled demo on
+  every supported JDK, but only in directed sessions of a few experiments. That
+  validates the mechanism; it does not tell you what thirty unattended
+  experiments against a hundred-thousand-line codebase look like. If you run one,
+  the results — good or bad — are worth an issue.
 - **Windows is untested.** Nothing in the harness is deliberately POSIX-only —
   the run claim is a `FileChannel` lock, process trees come from
   `ProcessHandle`, and both work on Windows — but CI does not run there, so it is

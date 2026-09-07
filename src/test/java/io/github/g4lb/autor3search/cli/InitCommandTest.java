@@ -120,6 +120,38 @@ class InitCommandTest {
         assertTrue(lines.contains("results.tsv"));
     }
 
+    /**
+     * A repository with both a pom.xml and a Gradle build cannot be detected, and
+     * this is common in the wild — a library that publishes to Maven Central but
+     * builds with Gradle keeps both. Pointing the user at a config file `init`
+     * has not written yet is advice they cannot act on, so the flag has to exist
+     * and the message has to name it.
+     */
+    @Test
+    void ambiguousBuildToolIsResolvableByFlagNotOnlyByConfig(@TempDir Path dir) throws IOException {
+        TestRepo r = mavenRepoWithABenchmark(dir);
+        r.write("build.gradle", "plugins { id 'java' }\n").commit("also a gradle build");
+
+        Capture.Output ambiguous = Capture.run(() -> InitCommand.run(new String[]{"-C", r.root().toString()}));
+        assertEquals(ExitCodes.USAGE, ambiguous.code());
+        assertTrue(ambiguous.err().contains("-build-tool"), ambiguous.err());
+        assertFalse(Files.exists(r.root().resolve(Config.PATH)));
+
+        Capture.Output resolved = Capture.run(() -> InitCommand.run(
+                new String[]{"-C", r.root().toString(), "-build-tool", "gradle"}));
+        assertEquals(ExitCodes.OK, resolved.code(), resolved.err());
+        assertTrue(Files.readString(r.root().resolve(Config.PATH)).contains("build_tool: gradle"));
+    }
+
+    @Test
+    void refusesAnUnknownBuildToolFlag(@TempDir Path dir) throws IOException {
+        TestRepo r = mavenRepoWithABenchmark(dir);
+        Capture.Output out = Capture.run(() -> InitCommand.run(
+                new String[]{"-C", r.root().toString(), "-build-tool", "bazel"}));
+        assertEquals(ExitCodes.USAGE, out.code());
+        assertTrue(out.err().contains("build_tool must be one of"), out.err());
+    }
+
     @Test
     void refusesADirectoryThatIsNotAGitRepository(@TempDir Path dir) {
         Capture.Output out = Capture.run(() -> InitCommand.run(new String[]{"-C", dir.toString()}));

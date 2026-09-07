@@ -72,6 +72,33 @@ class DoctorTest {
     }
 
     /**
+     * A repository that publishes to Maven Central but builds with Gradle keeps
+     * both build files. Re-detecting with "auto" regardless would report a hard
+     * FAIL on a repository whose config has already settled the question.
+     */
+    @Test
+    void honoursTheBuildToolTheConfigAlreadySettled(@TempDir Path dir) throws IOException {
+        TestRepo r = TestRepo.init(dir.resolve("both"));
+        r.write("pom.xml", "<project/>\n");
+        r.write("build.gradle", "plugins { id 'java' }\n");
+        r.write("src/test/java/a/B.java", """
+                package a;
+                import org.openjdk.jmh.annotations.Benchmark;
+                public class B { @Benchmark public int run() { return 1; } }
+                """);
+        r.commit("initial");
+
+        // Ambiguous, and honestly reported as such.
+        assertEquals(Doctor.Severity.FAIL, byName(Doctor.check(r.root())).get("build").severity());
+
+        r.write(io.github.g4lb.autor3search.config.Config.PATH,
+                "benchmarks: []\nbuild_tool: maven\n").commit("settle it");
+        Doctor.Finding settled = byName(Doctor.check(r.root())).get("build");
+        assertEquals(Doctor.Severity.OK, settled.severity(), settled.detail());
+        assertTrue(settled.detail().contains("maven"), settled.detail());
+    }
+
+    /**
      * A check that did not run must never be reported as a pass: missing cpufreq
      * on a VM is "not checked", not "fine".
      */

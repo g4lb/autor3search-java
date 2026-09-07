@@ -112,7 +112,7 @@ public final class Doctor {
         }
         try {
             List<Benchmark> benches = Discovery.benchmarks(root);
-            BuildTool tool = BuildTools.detect(root, "auto", benches);
+            BuildTool tool = BuildTools.detect(root, configuredBuildTool(root), benches);
             if (benches.isEmpty()) {
                 return new Finding("build", tool.describe() + " — but no @Benchmark methods were found;"
                         + " autor3search-java optimizes only what it can measure", Severity.WARN);
@@ -121,6 +121,26 @@ public final class Doctor {
                     Severity.OK);
         } catch (IOException e) {
             return new Finding("build", e.getMessage(), Severity.FAIL);
+        }
+    }
+
+    /**
+     * The {@code build_tool} the repository has already settled on, or "auto"
+     * before there is a config to read.
+     *
+     * <p>Re-detecting with "auto" regardless would report a hard FAIL on a
+     * repository that is configured perfectly well — a library that publishes to
+     * Maven Central but builds with Gradle keeps both files, and telling its owner
+     * their machine cannot measure would be simply wrong.
+     */
+    private static String configuredBuildTool(Path root) {
+        Path config = root.resolve(io.github.g4lb.autor3search.config.Config.PATH);
+        if (!Files.exists(config)) return "auto";
+        try {
+            return io.github.g4lb.autor3search.config.ConfigLoader.load(config).buildTool;
+        } catch (IOException | RuntimeException e) {
+            // An unreadable config is the config check's problem, not this one's.
+            return "auto";
         }
     }
 

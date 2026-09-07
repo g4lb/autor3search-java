@@ -45,6 +45,10 @@ public final class InitCommand {
         Flags f = new Flags("init");
         f.string("C", ".", "repository root (or a directory inside it)");
         f.bool("force", false, "overwrite an existing " + Config.PATH);
+        // Needed before the config exists: a repository carrying both a pom.xml and
+        // a Gradle build cannot be detected, and pointing the user at a config file
+        // this command has not written yet is advice they cannot act on.
+        f.string("build-tool", "auto", "auto, maven or gradle");
         if (!f.parse(args)) return ExitCodes.USAGE;
 
         try {
@@ -67,6 +71,13 @@ public final class InitCommand {
 
             Config cfg = Config.defaults();
             cfg.benchmarks = names;
+            cfg.buildTool = f.get("build-tool");
+            try {
+                cfg.validate();
+            } catch (io.github.g4lb.autor3search.config.ConfigException e) {
+                System.err.println("autor3search-java init: " + e.getMessage());
+                return ExitCodes.USAGE;
+            }
             // Detected here so a repository the harness cannot drive says so now,
             // rather than at 3am when the agent has already committed something.
             BuildTool tool = BuildTools.detect(root, cfg.buildTool, benches);

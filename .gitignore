@@ -1,9 +1,11 @@
 # Build output.
 target/
 
-# Working notes and planning artifacts. Deliberately not published: they are
-# the scaffolding of how this was built, not part of the tool.
-docs/
+# Working notes and planning artifacts — the scaffolding of how this was built,
+# not part of the tool. Only this subtree is ignored: docs/case-study.md is
+# meant to be published, because a claim about what the tool does is worth
+# nothing if the run behind it is not readable.
+docs/superpowers/
 
 # What the harness writes into a repository it is optimizing. Present here
 # only if someone points autor3search-java at its own checkout.

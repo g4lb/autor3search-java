@@ -54,9 +54,14 @@ public final class BuildTools {
         boolean maven = Files.isRegularFile(root.resolve("pom.xml"));
         boolean gradle = GRADLE_MARKERS.stream().anyMatch(m -> Files.isRegularFile(root.resolve(m)));
         if (maven && gradle) {
+            // Common in the wild — a library that publishes to Maven Central but
+            // builds with Gradle keeps both files — so the message has to be
+            // actionable from either side of `init`: before it, only the flag
+            // exists; after it, only the config does.
             throw new BuildToolException("this repository has both a pom.xml and a Gradle build file, so which"
-                    + " one drives it cannot be inferred. Set build_tool: maven or build_tool: gradle in "
-                    + io.github.g4lb.autor3search.config.Config.PATH + ".");
+                    + " one drives it cannot be inferred.\nRun `autor3search-java init -build-tool maven`"
+                    + " (or gradle), or set build_tool: in "
+                    + io.github.g4lb.autor3search.config.Config.PATH + " if it already exists.");
         }
         if (maven) return "maven";
         if (gradle) return "gradle";
