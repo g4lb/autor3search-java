@@ -534,25 +534,61 @@ compound the way percentage changes do.
 
 ## Run time
 
-A JVM measurement costs more than a Go one, and it is worth knowing where the time
-goes before you tune the knobs down.
+A JVM measurement costs more than a Go one, and it is worth knowing where the
+time goes before you tune the knobs down. The numbers here are measured on an
+Apple M-series laptop with OpenJDK 26, not estimated.
 
-One measured **round** is one JMH invocation: a fresh JVM, then
-`warmup_iterations + measurement_iterations` iterations of `benchtime` each, per
-benchmark. One **experiment** is `2 x (count + 1)` rounds — both sides, plus a
-discarded warmup round — on top of one compile and one test run of your project.
+One measured **round** is one JMH invocation per benchmark: a fresh JVM, then
+`warmup_iterations + measurement_iterations` iterations of `benchtime` each. One
+**experiment** is `2 x (count + 1)` rounds — both sides, plus a discarded warmup
+round — on top of one compile and one test run of your project.
 
-At the defaults (`count: 10`, `forks: 1`, 5 warmup and 5 measurement iterations of
-`1s`) that is 22 rounds of about 11 seconds per benchmark, so **roughly four
-minutes per benchmark per experiment**, plus your build. An overnight run is
-therefore tens of experiments, not hundreds.
+The fixed cost of a round — JVM start plus JMH harness setup — measured **0.31 s**,
+and was flat across benchtimes (1.31 s, 3.30 s and 10.32 s of wall time at
+`benchtime` 100 ms, 300 ms and 1 s, with 5 warmup and 5 measurement iterations).
+So:
+
+```
+experiment ≈ 2 × (count + 1) × benchmarks × (0.31s + (warmup + measurement) × benchtime)
+```
+
+That model predicts 4.9 minutes for the [org.json case study](docs/case-study.md)
+run (`count: 10`, 4 benchmarks, `benchtime: 300ms`); the observed wall time was
+4 m 50 s. At the defaults, a repository with four benchmarks costs about
+**15 minutes per experiment**, so an overnight run is tens of experiments, not
+hundreds.
+
+Two things are worth knowing before reaching for the knobs.
+
+**Lowering `benchtime` genuinely buys time here — unlike in the Go sibling.**
+There, per-round process startup is about 27 % of a round at `benchtime: 1s`, so
+tuning it down mostly buys back fixed cost. On the JVM that fixed cost is 3 % at
+1 s and still only 9 % at 300 ms, because JMH's start-up is small next to the
+iterations it then runs. Cutting `benchtime` from 1 s to 300 ms really is close
+to a 3x saving.
+
+**And on this machine it was not noisier.** Measuring the same unchanged code ten
+times, the round-to-round coefficient of variation was **0.96 % at 300 ms** and
+**3.03 % at 1 s** — the shorter setting was the *steadier* one, most likely
+because the whole sweep finished in a third of the wall time and so spanned less
+thermal drift. That is one benchmark on one laptop and is not a law; it is enough
+to say that "shorter is noisier" is not automatically true, and that you should
+measure your own repository rather than assume.
+
+The default stays at `1s` anyway, because the risk `benchtime` really controls is
+a different one: **it has to be long enough for the benchmark to do meaningful
+work.** At 1 s a method costing 10 ms per operation gets 100 operations per
+iteration; at 300 ms it gets 30, and the mean of 30 is a much weaker number. The
+demo's benchmark costs ~74 µs per operation, so even 300 ms buys it ~4000
+operations — which is why it lost nothing. Scale the setting to your own
+per-operation cost, not to someone else's.
 
 The knobs, in the order worth reaching for:
 
-- **`count`** trades noise resistance for time, linearly. It is the honest knob.
-  Below 6 you lose the confidence interval; below 4 the tool refuses.
-- **`benchtime`** shortens each iteration. Below about `200ms` you are mostly
-  paying JVM startup rather than measuring, and the numbers get noisier.
+- **`benchtime`** is the cheapest real saving, down to the point where your
+  benchmark stops getting enough operations per iteration.
+- **`count`** trades noise resistance for time, linearly. Below 6 you lose the
+  confidence interval; below 4 the tool refuses.
 - **`warmup_iterations`** is the one to leave alone. It is what separates
   measuring your code from measuring the interpreter.
 - **`jvm_args`** costs nothing and usually helps: pinning the heap
