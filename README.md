@@ -10,11 +10,9 @@ runs it through a frozen measurement harness, and the harness decides: **KEEP** 
 **DISCARD**. You wake up to a log of experiments and faster code.
 
 Inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch), which
-does this for a single-GPU LLM training loop, and a direct sibling of
-[autor3search-go](https://github.com/g4lb/autor3search-go), which does it for Go.
-This does it for the JVM — where the metric comes from JMH, where the machine has
-to be warmed up before it can be measured at all, and where **correctness is not
-optional**.
+does this for a single-GPU LLM training loop. This does it for the JVM — where the
+metric comes from JMH, where the machine has to be warmed up before it can be
+measured at all, and where **correctness is not optional**.
 
 > **Status: early but working.** Run against three real third-party libraries.
 > Against `org.json` a ten-experiment loop kept four optimizations worth a
@@ -97,10 +95,10 @@ Three things worth knowing before you start it:
   refuses to guess. See [Repos with no benchmarks](#repos-with-no-benchmarks).
 - **Numbers are only as good as the machine.** Run `doctor` and read it. A
   thermally throttled laptop on battery produces noise dressed as data.
-- **A JVM run is slower than a Go one, and that is not a bug.** Every measured
-  round pays a JVM start and a warmup before it measures anything, because a
-  cold JVM reports interpreter timings rather than the speed of your code. Budget
-  wall time accordingly; see [Run time](#run-time).
+- **Experiments take minutes, not seconds, and that is not a bug.** Every
+  measured round pays a JVM start and a warmup before it measures anything,
+  because a cold JVM reports interpreter timings rather than the speed of your
+  code. Budget wall time accordingly; see [Run time](#run-time).
 
 ## The idea
 
@@ -559,9 +557,9 @@ compound the way percentage changes do.
 
 ## Run time
 
-A JVM measurement costs more than a Go one, and it is worth knowing where the
-time goes before you tune the knobs down. The numbers here are measured on an
-Apple M-series laptop with OpenJDK 26, not estimated.
+A JVM measurement is not cheap, and it is worth knowing where the time goes
+before you tune the knobs down. The numbers here are measured on an Apple
+M-series laptop with OpenJDK 26, not estimated.
 
 One measured **round** is one JMH invocation per benchmark: a fresh JVM, then
 `warmup_iterations + measurement_iterations` iterations of `benchtime` each. One
@@ -585,12 +583,11 @@ hundreds.
 
 Two things are worth knowing before reaching for the knobs.
 
-**Lowering `benchtime` genuinely buys time here — unlike in the Go sibling.**
-There, per-round process startup is about 27 % of a round at `benchtime: 1s`, so
-tuning it down mostly buys back fixed cost. On the JVM that fixed cost is 3 % at
-1 s and still only 9 % at 300 ms, because JMH's start-up is small next to the
-iterations it then runs. Cutting `benchtime` from 1 s to 300 ms really is close
-to a 3x saving.
+**Lowering `benchtime` genuinely buys time.** The fixed 0.31 s is only 3 % of a
+round at `benchtime: 1s`, and still just 9 % at 300 ms, because JMH's start-up is
+small next to the iterations it then runs. So the setting really does control
+almost all of the wall time: cutting it from 1 s to 300 ms is close to a 3x
+saving, rather than mostly buying back start-up cost.
 
 **And on this machine it was not noisier.** Measuring the same unchanged code ten
 times, the round-to-round coefficient of variation was **0.96 % at 300 ms** and
