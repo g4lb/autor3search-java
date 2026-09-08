@@ -7,6 +7,8 @@ import io.github.g4lb.autor3search.config.ConfigRenderer;
 import io.github.g4lb.autor3search.discover.Benchmark;
 import io.github.g4lb.autor3search.discover.Discovery;
 import io.github.g4lb.autor3search.git.Git;
+import io.github.g4lb.autor3search.pipeline.Pipeline;
+import io.github.g4lb.autor3search.results.Results;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,6 +93,7 @@ public final class InitCommand {
             ensureGitignore(root, GITIGNORE_ENTRIES);
 
             printSummary(names, benches, tool, configPath, programPath);
+            warnAboutLicenceChecks(root);
             return ExitCodes.OK;
         } catch (IOException e) {
             System.err.println("autor3search-java init: " + e.getMessage());
@@ -150,6 +153,44 @@ public final class InitCommand {
         System.out.println("  git add -A && git commit -m \"autor3search-java init\"");
         System.out.println("  autor3search-java doctor");
         System.out.println("  autor3search-java baseline -tag " + defaultTag());
+    }
+
+    /** Plugin names that enforce a licence header on every file in the tree. */
+    private static final List<String> LICENCE_PLUGINS =
+            List.of("apache-rat-plugin", "license-maven-plugin", "licence-maven-plugin");
+
+    /**
+     * Warns when the build enforces licence headers, because {@code program.md}
+     * has none and the first {@code eval} will fail on it.
+     *
+     * <p>Only the project's own build files are read, so this sees the common
+     * case — commons-codec, for one, names apache-rat in its own pom — but not a
+     * check a parent pom configures entirely on the project's behalf. Resolving
+     * the parent chain would mean an effective-pom run, which costs seconds and
+     * needs a build that already works. The cheap check runs here; the reliable
+     * one is the diagnosis attached to the failure itself, which sees whatever
+     * actually happened.
+     */
+    static void warnAboutLicenceChecks(Path root) {
+        for (String file : List.of("pom.xml", "build.gradle", "build.gradle.kts")) {
+            Path p = root.resolve(file);
+            if (!Files.isRegularFile(p)) continue;
+            String text;
+            try {
+                text = Files.readString(p, StandardCharsets.UTF_8);
+            } catch (IOException | RuntimeException e) {
+                continue; // an unreadable build file is the build tool's problem
+            }
+            String found = LICENCE_PLUGINS.stream().filter(text::contains).findFirst().orElse(null);
+            if (found == null) continue;
+            System.out.println();
+            System.out.println("note: this build runs " + found + ", which checks every file for a licence");
+            System.out.println("      header. program.md has none, so exclude the harness's files from that");
+            System.out.println("      check before running baseline:");
+            System.out.println("        program.md, " + Results.PATH + ", " + Pipeline.RUN_LOG_NAME
+                    + ", .autor3search/**");
+            return;
+        }
     }
 
     /** A run tag suggested from today's date, e.g. "sep7". */

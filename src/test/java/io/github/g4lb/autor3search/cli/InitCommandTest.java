@@ -152,6 +152,34 @@ class InitCommandTest {
         assertTrue(out.err().contains("build_tool must be one of"), out.err());
     }
 
+    /**
+     * program.md has no licence header, so a build that checks for one fails on
+     * the first eval after init. Caught here only when the project declares the
+     * plugin itself — a parent pom can enable it invisibly, which is why the real
+     * safety net is the diagnosis attached to the failure.
+     */
+    @Test
+    void notesALicenceCheckThatWouldFailOnProgramMd(@TempDir Path dir) throws IOException {
+        TestRepo r = mavenRepoWithABenchmark(dir);
+        r.write("pom.xml", """
+                <project><build><plugins><plugin>
+                  <artifactId>apache-rat-plugin</artifactId>
+                </plugin></plugins></build></project>
+                """).commit("enforce licence headers");
+
+        Capture.Output out = Capture.run(() -> InitCommand.run(new String[]{"-C", r.root().toString()}));
+        assertEquals(ExitCodes.OK, out.code(), out.err());
+        assertTrue(out.out().contains("apache-rat-plugin"), out.out());
+        assertTrue(out.out().contains("program.md"), out.out());
+    }
+
+    @Test
+    void saysNothingAboutLicencesWhenTheBuildDoesNotCheckThem(@TempDir Path dir) throws IOException {
+        TestRepo r = mavenRepoWithABenchmark(dir);
+        Capture.Output out = Capture.run(() -> InitCommand.run(new String[]{"-C", r.root().toString()}));
+        assertFalse(out.out().contains("licence"), out.out());
+    }
+
     @Test
     void refusesADirectoryThatIsNotAGitRepository(@TempDir Path dir) {
         Capture.Output out = Capture.run(() -> InitCommand.run(new String[]{"-C", dir.toString()}));

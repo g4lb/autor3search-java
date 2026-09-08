@@ -53,7 +53,7 @@ public final class Pipeline {
      * than streamed to stdout. It is gitignored by {@code init} and is not part
      * of the score.
      */
-    public static final String RUN_LOG_NAME = "run.log";
+    public static final String RUN_LOG_NAME = PipelinePaths.RUN_LOG_NAME;
 
     /**
      * How the candidate is measured against the pinned baseline.
@@ -230,7 +230,7 @@ public final class Pipeline {
             return gate(Status.CRASH, Reason.TIMEOUT, "the compile timed out after " + o.cfg().timeout);
         }
         if (!compile.ok()) {
-            return gate(Status.CRASH, Reason.BUILD, compile.tail(30));
+            return gate(Status.CRASH, Reason.BUILD, withHint(compile));
         }
 
         // 4. Tests. Correctness is never traded for speed.
@@ -239,7 +239,7 @@ public final class Pipeline {
             return gate(Status.CRASH, Reason.TIMEOUT, "the test run timed out after " + o.cfg().timeout);
         }
         if (!test.ok()) {
-            return gate(Status.FAIL, Reason.TESTS, test.tail(40));
+            return gate(Status.FAIL, Reason.TESTS, withHint(test));
         }
 
         // 4b. Baseline worktree integrity. An agent could edit the pinned baseline
@@ -321,6 +321,17 @@ public final class Pipeline {
         }
 
         return new Outcome(result, new Measurements(timeDeltas, bytesDeltas));
+    }
+
+    /**
+     * The tail of a failure, plus an explanation when the failure is really about
+     * the harness rather than about the change under test.
+     */
+    private static String withHint(ProcResult res) {
+        String tail = res.tail(40);
+        String hint = io.github.g4lb.autor3search.build.BuildDiagnostics.explain(
+                res.stdout() + "\n" + res.stderr());
+        return hint == null ? tail : tail + "\n" + hint;
     }
 
     private static Outcome gate(Status status, Reason reason, String message) {
