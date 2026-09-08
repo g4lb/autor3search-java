@@ -7,12 +7,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A small flag parser in the shape Go's {@code flag} package uses, because the
- * Go harness this is a port of established that command surface and an agent
- * following a program.md written for one should not have to relearn the other.
+ * A deliberately small flag parser.
  *
  * <p>Accepts {@code -name value}, {@code -name=value} and, for booleans, a bare
- * {@code -name}. A leading {@code --} is accepted as a synonym for {@code -}.
+ * {@code -name}, treating a leading {@code --} as a synonym for {@code -} so that
+ * both spellings work wherever a flag appears.
+ *
+ * <p>Hand-written rather than taken from a CLI library, for two reasons. The
+ * command surface is nine subcommands with at most five flags each, so a
+ * dependency would be most of a megabyte to parse a few dozen strings. And the
+ * flags are part of a contract: {@code program.md} tells an agent to run
+ * {@code eval --json -desc "..."}, and that has to keep meaning exactly what it
+ * says across versions, which is easier to guarantee for code that lives here.
  */
 public final class Flags {
 

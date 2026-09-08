@@ -26,11 +26,12 @@ public final class ConfigRenderer {
         list(b, "benchmarks", cfg.benchmarks);
         b.append('\n');
 
-        b.append("# Scope lists the repository path patterns the agent is allowed to edit, in\n");
-        b.append("# Go's package-pattern spelling: \"./...\" is the whole repository,\n");
-        b.append("# \"./src/main/java/...\" is that directory and everything under it, and\n");
-        b.append("# \"./src/main/java/com/example\" is that one directory's own files. Anything\n");
-        b.append("# outside these patterns is rejected by the scope gate before it is built.\n");
+        b.append("# Scope lists the repository path patterns the agent is allowed to edit.\n");
+        b.append("# A trailing \"/...\" means the directory and everything under it, so\n");
+        b.append("# \"./...\" is the whole repository and \"./src/main/java/...\" is that tree;\n");
+        b.append("# without it, \"./src/main/java/com/example\" matches that one directory's own\n");
+        b.append("# files and not its subdirectories. Anything outside these patterns is\n");
+        b.append("# rejected by the scope gate before it is built.\n");
         list(b, "scope", cfg.scope);
         b.append('\n');
 

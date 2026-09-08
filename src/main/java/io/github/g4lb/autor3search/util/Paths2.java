@@ -17,11 +17,15 @@ public final class Paths2 {
     }
 
     /**
-     * Cleans a slash-separated relative path the way Go's {@code path.Clean} does:
-     * collapse "." and "//", resolve interior "..", and LEAVE a leading ".." in
-     * place rather than resolving it away. Leaving it is the point — callers
-     * reject a path that still starts with ".." instead of silently admitting one
-     * that climbed out of the repository root.
+     * Normalises a slash-separated relative path: collapses "." and empty
+     * segments, resolves interior "..", and LEAVES a leading ".." in place rather
+     * than resolving it away.
+     *
+     * <p>That last part is the whole point, and it is where
+     * {@link java.nio.file.Path#normalize} differs. Callers reject a path that
+     * still starts with ".." — a manifest entry, a scope candidate — so the
+     * escape has to survive normalisation to be caught. Resolving it away would
+     * hand them a path that looks ordinary and lands outside the repository.
      */
     public static String clean(String p) {
         String s = p.replace('\\', '/');
