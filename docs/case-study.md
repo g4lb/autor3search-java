@@ -215,12 +215,79 @@ always detected.
 
 The first two shipped in v0.1.1, the third in the release that follows this run.
 
+## Two more libraries
+
+`org.json` had obvious headroom. Two libraries that do not, run the same way, to
+see whether the verdicts track reality rather than the tool's enthusiasm.
+
+### jsoup @ `6d3a579` — 2 experiments, nothing kept
+
+Benchmarks: `parse`, `select`, `text`, `outerHtml`, from the headline API. 97
+frozen sources.
+
+| Experiment | Result |
+|---|---|
+| Reject ordinary characters with one comparison before binary-searching the tokeniser's delimiter set | `parse` −1.44 % (p=0.19) — DISCARD |
+| Match selectors against an array instead of a `List` | `select` −1.41 % (p=0.043) — DISCARD |
+
+Both ideas were sound and both effects were real; neither was worth 1 %. jsoup
+has clearly been tuned already, and the profile's biggest item — 27 % in
+`NodeTraversor.traverse` — is structural rather than a missed trick. **A tool
+that reported wins here would be lying.**
+
+### commons-codec @ `1f9eea7` — 2 experiments, nothing kept
+
+Benchmarks: Base64 and Hex, both directions, over 64 KiB. 89 frozen sources.
+
+The profile was the most emphatic of the three runs: `BaseNCodec.ensureBufferSize`
+at **44.5 %** of Base64 decode and **31.4 %** of encode. The buffer starts at
+8 KiB and doubles, so a large payload resizes repeatedly.
+
+| Experiment | Result |
+|---|---|
+| Allocate the buffer once from the known length, in the shared base class | **FAIL** — `tests_failed` |
+| The same, scoped to `Base64.decode` | `base64Decode` −2.07 % (p=0.0015) — DISCARD, `improvement_below_min_effect` |
+
+The first was rejected by 49 errors in `Base58Test`. Base58 does not follow the
+block model `BaseNCodec.getEncodedLength` assumes, so a change that is correct
+for Base64 corrupts it — caught by the library's own tests, in a class the
+benchmark never touches.
+
+The second is the more interesting verdict, and the only time in any of these
+runs that `improvement_below_min_effect` fired. `base64Decode` improved 2.07 % at
+p = 0.0015 — significant even at the corrected `0.05/4` — so the change
+demonstrably worked. It was still discarded, because one benchmark of four
+moving 2 % is a geomean of 0.9964, and the 1 % floor is applied to the run's
+overall score, not to its best number. The reason code says exactly that, which
+is the difference between "your idea did nothing" and "your idea worked and is
+too small to bank".
+
+### What the three runs together say
+
+**The sampling profiler is a lead, not evidence.** `ensureBufferSize` at 44.5 %
+of a profile yielded 2.07 % when actually measured. `Arrays.copyOf` — the real
+copying — was only 3.5 %, which should have been the tell. Every library here had
+at least one hot spot that did not pay out, and the only way to know which was to
+run the experiment.
+
+**The verdicts tracked the headroom.** org.json had a `synchronized` reader on a
+per-character path and a regex per number written, and gave up 25 %. jsoup and
+commons-codec are mature and gave up nothing. The harness did not manufacture a
+result for either.
+
 ## Caveats
 
-- **Ten experiments on one library.** Enough to show the loop sustains itself,
-  finds real wins, rejects real noise and stops cleanly. Not enough to say what
-  it does against a codebase a hundred times larger, where the test suite alone
-  may cost minutes per experiment.
+- **Fourteen experiments across three libraries**, the largest of which is 97
+  source files with a 15-second test suite. Enough to show the loop sustains
+  itself, finds real wins where they exist and declines to invent them where they
+  do not. Not enough to say what it does against a codebase a hundred times
+  larger, where the test suite alone may cost minutes per experiment.
+- **Getting JMH into an existing project is the fiddly part.** Three libraries
+  needed three different edits: jsoup already had a `<configuration>` to merge
+  into, commons-codec's Apache parent passes `-proc:none` in `compilerArgs` which
+  silently defeats `<proc>full</proc>`, and its `apache-rat` licence check fails
+  the build on the `program.md` that `init` writes. None of that is the harness's
+  doing, but all of it stands between a user and their first run.
 - **The configuration was too tight for the last third of the run.** Four
   benchmarks at `count: 10` could not resolve a 10 % effect. A second run at
   `count: 20` would very likely have banked two more of the discards — at twice

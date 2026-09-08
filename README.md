@@ -16,11 +16,14 @@ This does it for the JVM — where the metric comes from JMH, where the machine 
 to be warmed up before it can be measured at all, and where **correctness is not
 optional**.
 
-> **Status: early but working.** A full ten-experiment loop against a real
-> third-party library — `org.json` (JSON-java) — kept four optimizations worth a
+> **Status: early but working.** Run against three real third-party libraries.
+> Against `org.json` a ten-experiment loop kept four optimizations worth a
 > **cumulative −25.1 %**, verified against that library's own 59 frozen test
-> files. Measuring all four at once end to end gives −26.1 %, which is the first
-> real check that composing kept scores by multiplication matches reality.
+> files; measuring all four at once end to end gives −26.1 %, the first real
+> check that composing kept scores by multiplication matches reality. Against
+> `jsoup` and `commons-codec` — both already well tuned — it kept **nothing**,
+> which is the more important result: it did not manufacture a win where there
+> was none.
 >
 > Every number in this README and in [the case study](docs/case-study.md) is a
 > real measurement, never an illustration. The case study is worth reading for
@@ -156,6 +159,17 @@ meant to constrain. The only harness output that stays inside your repo is
 
   `eval` recognises both failures and tells you which one you have rather than
   passing the JVM's error through.
+
+  Two obstacles worth knowing about before you hit them, both found on real
+  projects:
+
+  - A parent pom may pass `-proc:none` in `compilerArgs`, which **silently
+    overrides** `<proc>full</proc>`. The Apache Commons parent does. Re-declare
+    the `default-testCompile` execution with `<compilerArgs combine.self="override"/>`
+    to clear it.
+  - If your build enforces licence headers — `apache-rat`, `license-maven-plugin` —
+    it will fail on the `program.md` that `init` writes. Exclude `program.md`,
+    `results.tsv`, `run.log` and `.autor3search/**` from that check.
 
 ## Quick start
 
