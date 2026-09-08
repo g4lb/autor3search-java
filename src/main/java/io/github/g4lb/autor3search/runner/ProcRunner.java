@@ -8,8 +8,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,6 +29,14 @@ import java.util.concurrent.TimeUnit;
 public final class ProcRunner {
     /** Per-stream capture limit. Beyond it, output is dropped and marked truncated. */
     private static final int CAP_BYTES = 4 * 1024 * 1024;
+
+    /**
+     * How many times a cancel re-walks the descendant tree, and how long it pauses
+     * between walks. Enough to catch a process forked while the previous sweep was
+     * running, short enough that a human waiting on Ctrl+C does not notice.
+     */
+    private static final int CANCEL_SWEEPS = 5;
+    private static final long CANCEL_SWEEP_PAUSE_MILLIS = 50;
 
     private final Path dir;
     private final Duration timeout;
@@ -76,11 +86,8 @@ public final class ProcRunner {
         cancelled = true;
         Process p = current;
         if (p == null) return;
-        List<ProcessHandle> tree = new ArrayList<>(p.descendants().toList());
+        List<ProcessHandle> tree = tearDownDescendants(p);
         p.destroy();
-        for (ProcessHandle h : tree) {
-            h.destroy();
-        }
         try {
             if (!p.waitFor(5, TimeUnit.SECONDS)) {
                 p.destroyForcibly();
@@ -92,6 +99,41 @@ public final class ProcRunner {
         for (ProcessHandle h : tree) {
             if (h.isAlive()) h.destroyForcibly();
         }
+    }
+
+    /**
+     * Kills everything below p, sweeping more than once, and returns every
+     * process it saw.
+     *
+     * <p>A single snapshot is not enough, and that is not a theoretical concern —
+     * it failed in CI. A build tool or a shell loop can fork again between the
+     * snapshot and the kill, and the new process is then never reached. Worse, it
+     * cannot be reached afterwards either: once the root dies its children are
+     * reparented, so they no longer appear under {@code p.descendants()} at all.
+     * Whatever is going to be found has to be found while the root is still
+     * alive, which is why this runs to completion BEFORE the root is destroyed.
+     *
+     * <p>The failure this prevents is a forked benchmark JVM outliving the run.
+     * An orphan like that keeps burning CPU and quietly corrupts every later
+     * measurement on the machine.
+     */
+    private static List<ProcessHandle> tearDownDescendants(Process p) {
+        Set<ProcessHandle> seen = new LinkedHashSet<>();
+        for (int sweep = 0; sweep < CANCEL_SWEEPS; sweep++) {
+            List<ProcessHandle> tree = p.descendants().toList();
+            for (ProcessHandle h : tree) {
+                seen.add(h);
+                h.destroy();
+            }
+            if (tree.isEmpty()) break;
+            try {
+                Thread.sleep(CANCEL_SWEEP_PAUSE_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return new ArrayList<>(seen);
     }
 
     /** Runs one command in this runner's directory, bounded by its timeout. */
@@ -152,10 +194,13 @@ public final class ProcRunner {
     }
 
     private void cancelTree(Process p) {
-        List<ProcessHandle> tree = new ArrayList<>(p.descendants().toList());
+        // Same ordering as cancel(): find and signal the descendants while the
+        // root is still alive to be found through, then kill the root, then
+        // forcibly clear whatever is left.
+        List<ProcessHandle> tree = tearDownDescendants(p);
         p.destroyForcibly();
         for (ProcessHandle h : tree) {
-            h.destroyForcibly();
+            if (h.isAlive()) h.destroyForcibly();
         }
     }
 

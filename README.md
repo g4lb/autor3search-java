@@ -629,14 +629,16 @@ Stated plainly, because performance tools that oversell are worse than useless:
 - **No benchmarks, no value.** This optimizes what it can measure. `init` tells
   you plainly rather than pretending — see
   [Repos with no benchmarks](#repos-with-no-benchmarks).
-- **Windows runs in CI, with one gap.** The suite runs on `windows-latest`, so
-  the freeze package's symlink guards, the file-lock run claim, the git wrapper
-  and both end-to-end journeys are all exercised there. Adding that job found two
-  real bugs — the harness looked for `mvn` rather than `mvn.cmd` and so could not
-  start a build at all, and the run claim locked the bytes the pid was stored in,
-  which is advisory on Unix but mandatory on Windows. Both are fixed. The gap is
-  `ProcRunnerTest`, which drives `sh` and is skipped there; that is the tests'
-  limitation rather than the code's.
+- **Linux, macOS and Windows all run the full suite in CI**, including both
+  end-to-end journeys — real Maven and real Gradle builds driving real forked
+  benchmark JVMs — on JDK 17, 21 and 25 for Linux and JDK 21 for the other two.
+  The one gap is `ProcRunnerTest`, skipped on Windows because the tests drive
+  `sh`; that is the tests' limitation and not the code's. Running there was worth
+  it: it found that the harness looked for `mvn` rather than `mvn.cmd` and so
+  could not start a build at all, and that the run claim locked the bytes the pid
+  was stored in, which is advisory on Unix and mandatory on Windows. macOS later
+  caught a third — a cancel that snapshotted the process tree once could miss a
+  process forked a moment later, and leak a benchmark JVM.
 - **Laptops are noisy.** macOS P/E core scheduling makes numbers jump.
   Interleaving and `count` mitigate it and `doctor` warns you, but a quiet Linux
   box gives cleaner results.
