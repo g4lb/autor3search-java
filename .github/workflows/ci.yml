@@ -40,6 +40,13 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      # Ubuntu and macOS runners ship Gradle; the Windows image does not, and the
+      # Gradle end-to-end test skips itself when it cannot find one. Skipping is
+      # honest but it left the one build tool whose launcher name differs by
+      # platform (gradle.bat) unexercised on the only platform where that matters.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
       - run: mvn -B --no-transfer-progress test
 
   # Windows is a target the code goes out of its way not to exclude — the run
@@ -62,4 +69,11 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      # Ubuntu and macOS runners ship Gradle; the Windows image does not, and the
+      # Gradle end-to-end test skips itself when it cannot find one. Skipping is
+      # honest but it left the one build tool whose launcher name differs by
+      # platform (gradle.bat) unexercised on the only platform where that matters.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
       - run: mvn -B --no-transfer-progress test
