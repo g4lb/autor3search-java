@@ -149,6 +149,16 @@ tell you not to over-read it. Two you may see:
   is. Every experiment will `DISCARD` until `count` is raised, so treat this
   as a broken configuration and stop rather than continuing to burn the night
   on experiments that cannot be banked.
+- **an improvement lost to the correction** — one or more benchmarks improved
+  significantly at `alpha`, and none cleared the stricter `alpha/k` a KEEP
+  needs. Your change probably worked and this run cannot prove it. Do NOT
+  re-run the same idea hoping for a better roll: the same change measured
+  three times in one real run gave -4.89%, -1.93% and -5.54%, so a re-run
+  tells you about the machine, not about the code. Either fold it together
+  with another near-miss so the combined effect is large enough to clear the
+  bar, or tell the human that `count` is too low for the size of effect you
+  are finding — that is their decision, not yours, because it costs wall
+  time.
 
 **What `base_ns` means changes as the run progresses.** It is NOT always the
 commit `baseline` recorded — it is whatever the harness's measurement baseline

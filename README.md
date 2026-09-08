@@ -1,7 +1,7 @@
 # autor3search-java
 
-[![ci](https://github.com/g4lb/autor3search-java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/g4lb/autor3search-java/actions/workflows/ci.yml?query=branch%3Amain)
 [![release](https://img.shields.io/github/v/release/g4lb/autor3search-java?label=release)](https://github.com/g4lb/autor3search-java/releases/latest)
+[![ci](https://github.com/g4lb/autor3search-java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/g4lb/autor3search-java/actions/workflows/ci.yml?query=branch%3Amain)
 
 **Autonomous AI-driven performance optimization for any Java repository.**
 
@@ -512,6 +512,15 @@ value. They never change the decision. Two matter:
   (`0.05/7 = 0.0071` against a floor of `0.0079`). The config validator's
   `count >= 4` floor cannot catch this: it does not know how many benchmarks a run
   will compare. The warning names the count to raise to.
+- **An improvement lost to the correction rather than to noise.** At least one
+  benchmark improved significantly at `alpha`, and none of them cleared
+  `alpha/k`. The effect is quite possibly real and simply not resolvable at this
+  `count` — a run against `org.json` discarded a −13.0 % change this way at
+  p = 0.0185, with four benchmarks splitting the budget
+  ([case study](docs/case-study.md)). Seeing a visible improvement thrown away
+  reads as a malfunction, so the harness says which of the two it was, and that
+  raising `count` is the fix. Re-running the same idea unchanged is not: three
+  measurements of one change in that run gave −4.89 %, −1.93 % and −5.54 %.
 
 `B/op` — JMH's normalised allocation rate, from its GC profiler — is measured and
 shown to the agent as a hint, but never scored. Scoring it would let a change that
@@ -609,12 +618,17 @@ Stated plainly, because performance tools that oversell are worse than useless:
   as evidence worth banking, not as proof the change works. `min_effect_pct` is
   the knob for this: raise it on a noisy machine, since it costs you only wins
   smaller than the noise you cannot measure anyway.
-- **No long unattended run yet.** The tool has been driven end to end against a
-  real library ([case study](docs/case-study.md)) and against the bundled demo on
-  every supported JDK, but only in directed sessions of a few experiments. That
-  validates the mechanism; it does not tell you what thirty unattended
-  experiments against a hundred-thousand-line codebase look like. If you run one,
-  the results — good or bad — are worth an issue.
+- **Nothing large has been run yet.** A full ten-experiment loop against
+  `org.json` ([case study](docs/case-study.md)) shows the loop sustains itself,
+  finds real wins and rejects real noise. That library is 26 source files with a
+  9.5-second test suite. Against a codebase a hundred times larger — where the
+  test suite alone may cost minutes, and every experiment pays it — the wall-clock
+  arithmetic in [Run time](#run-time) stops being a footnote and starts deciding
+  whether the tool is usable at all. If you run one, the results — good or bad —
+  are worth an issue.
+- **No benchmarks, no value.** This optimizes what it can measure. `init` tells
+  you plainly rather than pretending — see
+  [Repos with no benchmarks](#repos-with-no-benchmarks).
 - **Windows runs in CI, with one gap.** The suite runs on `windows-latest`, so
   the freeze package's symlink guards, the file-lock run claim, the git wrapper
   and both end-to-end journeys are all exercised there. Adding that job found two
