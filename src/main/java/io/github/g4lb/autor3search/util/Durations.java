@@ -19,10 +19,19 @@ public final class Durations {
     private static final Pattern UNIT = Pattern.compile("([0-9]*\\.?[0-9]+)(ns|us|µs|ms|s|m|h)");
     private static final Pattern WHOLE = Pattern.compile("^(?:[0-9]*\\.?[0-9]+(?:ns|us|µs|ms|s|m|h))+$");
 
-    /** Matches JMH's and go test's fixed-iteration-count form, e.g. "100x". */
+    /**
+     * Matches a fixed iteration COUNT where a duration is required, e.g. "100x".
+     *
+     * <p>Not a form JMH accepts, and not one this tool accepts either — it is
+     * recognised only so that writing it earns an explanation instead of a bare
+     * parse error. Other benchmarking tools spell a fixed count this way, and
+     * someone reaching for it here has made a reasonable assumption rather than a
+     * typo. Why a fixed count is refused outright is in the message
+     * {@code Config.validate} raises.
+     */
     private static final Pattern COUNT_FORM = Pattern.compile("^[0-9]+x$");
 
-    /** Reports whether s uses the fixed-iteration-count form rather than a duration. */
+    /** Reports whether s asks for a fixed iteration count rather than a duration. */
     public static boolean isCountForm(String s) {
         return s != null && COUNT_FORM.matcher(s.trim()).matches();
     }

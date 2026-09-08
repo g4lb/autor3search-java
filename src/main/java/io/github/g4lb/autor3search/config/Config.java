@@ -114,7 +114,7 @@ public final class Config {
             }
         }
         if (Durations.isCountForm(benchtime)) {
-            throw new ConfigException("benchtime \"" + benchtime + "\" uses a fixed-iteration-count form (Nx),"
+            throw new ConfigException("benchtime \"" + benchtime + "\" asks for a fixed number of iterations,"
                     + " which is deliberately unsupported: a fixed count makes rounds incomparable, because a"
                     + " candidate that is twice as fast finishes in half the wall time and is therefore measured"
                     + " under different thermal conditions — exactly what the interleaved A/B design exists to"
