@@ -10,6 +10,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # A step `if` cannot read the `secrets` context — that is a schema error that
+      # fails the workflow before any job starts, with no log to explain it. Job-level
+      # env can read secrets, and a step `if` can read env, so the presence check for
+      # the signing key is hoisted here.
+      HAS_SIGNING_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -57,7 +63,7 @@ jobs:
       # waits for it to go live. Skipped when the signing key is absent so a
       # fork's tag push degrades to a GitHub release instead of failing.
       - name: publish to Maven Central
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MAVEN_GPG_PRIVATE_KEY != '' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING_KEY == 'true' }}
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
