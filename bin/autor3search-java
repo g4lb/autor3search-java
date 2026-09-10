@@ -31,7 +31,7 @@ done
 if [ -z "${jar:-}" ]; then
   echo "autor3search-java: cannot find autor3search-java.jar next to $here" >&2
   echo "Build it with 'mvn -DskipTests package', or download it from" >&2
-  echo "https://github.com/g4lb/autor3search-java/releases/latest" >&2
+  echo "https://github.com/autor3search/java/releases/latest" >&2
   exit 64
 fi
 

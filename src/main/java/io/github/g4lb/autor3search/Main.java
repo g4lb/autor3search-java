@@ -77,7 +77,7 @@ public final class Main {
             System.err.println("autor3search-java " + args[0] + ": internal error: " + describe(e));
             e.printStackTrace(System.err);
             System.err.println("\nThis is a bug in autor3search-java, not a verdict on your change."
-                    + "\nPlease report it: https://github.com/g4lb/autor3search-java/issues");
+                    + "\nPlease report it: https://github.com/autor3search/java/issues");
             return ExitCodes.USAGE;
         }
     }

@@ -1,7 +1,7 @@
 # autor3search-java
 
-[![release](https://img.shields.io/github/v/release/g4lb/autor3search-java?label=release)](https://github.com/g4lb/autor3search-java/releases/latest)
-[![ci](https://github.com/g4lb/autor3search-java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/g4lb/autor3search-java/actions/workflows/ci.yml?query=branch%3Amain)
+[![release](https://img.shields.io/github/v/release/autor3search/java?label=release)](https://github.com/autor3search/java/releases/latest)
+[![ci](https://github.com/autor3search/java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/autor3search/java/actions/workflows/ci.yml?query=branch%3Amain)
 
 **Autonomous AI-driven performance optimization for any Java repository.**
 
@@ -46,9 +46,9 @@ Setup:
 1. Download the latest release jar and its launcher:
      mkdir -p ~/.local/bin
      curl -sSL -o ~/.local/bin/autor3search-java.jar \
-       https://github.com/g4lb/autor3search-java/releases/latest/download/autor3search-java.jar
+       https://github.com/autor3search/java/releases/latest/download/autor3search-java.jar
      curl -sSL -o ~/.local/bin/autor3search-java \
-       https://github.com/g4lb/autor3search-java/releases/latest/download/autor3search-java
+       https://github.com/autor3search/java/releases/latest/download/autor3search-java
      chmod +x ~/.local/bin/autor3search-java
    Make sure ~/.local/bin is on PATH.
 2. autor3search-java init
@@ -174,13 +174,13 @@ meant to constrain. The only harness output that stays inside your repo is
 ```bash
 # from a release
 curl -sSL -o ~/.local/bin/autor3search-java.jar \
-  https://github.com/g4lb/autor3search-java/releases/latest/download/autor3search-java.jar
+  https://github.com/autor3search/java/releases/latest/download/autor3search-java.jar
 curl -sSL -o ~/.local/bin/autor3search-java \
-  https://github.com/g4lb/autor3search-java/releases/latest/download/autor3search-java
+  https://github.com/autor3search/java/releases/latest/download/autor3search-java
 chmod +x ~/.local/bin/autor3search-java
 
 # or from source
-git clone https://github.com/g4lb/autor3search-java && cd autor3search-java
+git clone https://github.com/autor3search/java && cd java
 mvn -DskipTests package        # target/autor3search-java.jar, plus bin/autor3search-java
 
 cd your-java-project
