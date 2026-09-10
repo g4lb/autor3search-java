@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.g4lb</groupId>
+  <groupId>io.github.autor3search</groupId>
   <artifactId>autor3search-java</artifactId>
-  <version>0.1.6</version>
+  <version>0.2.0</version>
   <packaging>jar</packaging>
 
   <name>autor3search-java</name>
@@ -23,9 +23,17 @@
   <developers>
     <developer>
       <name>Gal Be</name>
-      <url>https://github.com/g4lb</url>
+      <url>https://github.com/autor3search</url>
     </developer>
   </developers>
+
+  <!-- Maven Central requires scm/url/licenses/developers on every release. -->
+  <scm>
+    <connection>scm:git:https://github.com/autor3search/java.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/autor3search/java.git</developerConnection>
+    <url>https://github.com/autor3search/java</url>
+    <tag>HEAD</tag>
+  </scm>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -120,7 +128,7 @@
               </filters>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>io.github.g4lb.autor3search.Main</mainClass>
+                  <mainClass>io.github.autor3search.Main</mainClass>
                   <manifestEntries>
                     <Implementation-Version>${project.version}</Implementation-Version>
                   </manifestEntries>
@@ -132,4 +140,77 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- Activated by the release workflow (`-Prelease`). Ordinary `mvn package`
+         must not require a GPG key, so none of this runs by default. -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals><goal>jar-no-fork</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.12.0</version>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals><goal>jar</goal></goals>
+              </execution>
+            </executions>
+            <configuration>
+              <!-- This is a CLI, not a library API; missing javadoc on internal
+                   types must not fail a release. -->
+              <doclint>none</doclint>
+              <quiet>true</quiet>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.8</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals><goal>sign</goal></goals>
+                <configuration>
+                  <!-- The key is fed in on stdin by CI; never prompt for it. -->
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.11.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <!-- Credentials come from the `central` server in settings.xml,
+                   which the release workflow writes from repository secrets. -->
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>

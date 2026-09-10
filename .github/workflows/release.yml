@@ -17,6 +17,33 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+          # Writes ~/.m2/settings.xml with a `central` server whose credentials
+          # come from the env vars below, and imports the signing key, so the
+          # release profile's gpg + central-publishing plugins find both.
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      # A tag that disagrees with the pom publishes a version nobody can check
+      # out, and Maven Central releases are immutable. Fail before uploading.
+      - name: the tag must be the version it claims to be
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(mvn -B -q --no-transfer-progress \
+            help:evaluate -Dexpression=project.version -DforceStdout)
+          if [ "$tag" != "$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match pom version $version" >&2
+            exit 1
+          fi
+          echo "publishing $version"
+
+      # The same gate ci.yml runs. A release is not the place to find out that
+      # the tagged commit does not pass its own tests.
+      - name: test
+        run: mvn -B --no-transfer-progress test
 
       # A results.tsv row is only as reproducible as the binary that produced it,
       # so the commit is stamped into the jar and `version` reports it back.
@@ -26,7 +53,21 @@ jobs:
             -DbuildCommit="$(git rev-parse --short HEAD)" package
           java -jar target/autor3search-java.jar version
 
-      - name: publish
+      # Signs, attaches sources + javadoc, uploads to the Central Portal and
+      # waits for it to go live. Skipped when the signing key is absent so a
+      # fork's tag push degrades to a GitHub release instead of failing.
+      - name: publish to Maven Central
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MAVEN_GPG_PRIVATE_KEY != '' }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          mvn -B --no-transfer-progress -Prelease -DskipTests \
+            -DbuildCommit="$(git rev-parse --short HEAD)" deploy
+
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

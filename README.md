@@ -1,6 +1,7 @@
 # autor3search-java
 
 [![release](https://img.shields.io/github/v/release/autor3search/java?label=release)](https://github.com/autor3search/java/releases/latest)
+[![maven central](https://img.shields.io/maven-central/v/io.github.autor3search/autor3search-java?label=maven%20central)](https://central.sonatype.com/artifact/io.github.autor3search/autor3search-java)
 [![ci](https://github.com/autor3search/java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/autor3search/java/actions/workflows/ci.yml?query=branch%3Amain)
 
 **Autonomous AI-driven performance optimization for any Java repository.**
